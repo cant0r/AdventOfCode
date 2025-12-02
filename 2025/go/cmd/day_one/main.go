@@ -42,7 +42,6 @@ func partOne() {
 	utilities.PrintResult(minimumDialHitCount)
 }
 
-// 6561
 func partTwo() {
 	dialPosition := 50
 	minimumDial := 0
