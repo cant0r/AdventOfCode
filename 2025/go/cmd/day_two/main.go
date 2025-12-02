@@ -39,7 +39,6 @@ func partOne() {
 }
 
 func partTwo() {
-
 	result := 0
 	for _, idRange := range strings.Split(inputData, ",") {
 		idRangeParts := strings.Split(idRange, "-")
