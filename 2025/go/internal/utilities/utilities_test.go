@@ -47,6 +47,18 @@ func TestMod(t *testing.T) {
 	}
 }
 
+func TestPow(t *testing.T) {
+	numbers := []int{-2, 2, 3, 10, -5}
+	exponents := []int{2, 0, 3, 4, 3}
+	expectedResults := []int{4, 1, 27, 10000, -125}
+
+	for index, exponent := range exponents {
+		if power, _ := Pow(numbers[index], exponent); power != expectedResults[index] {
+			t.Errorf("%d to the power of %d was expected to be %d but got %d!\n", numbers[index], exponent, expectedResults[index], power)
+		}
+	}
+}
+
 func TestGetUniqueCharacters(t *testing.T) {
 	words := []string{"apple", "cat", "belabela", "aaddaabb"}
 	uniqueCharacters := []string{"aple", "cat", "bela", "adb"}
