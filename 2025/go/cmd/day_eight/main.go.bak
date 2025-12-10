@@ -1,0 +1,241 @@
+package main
+
+import (
+	"cmp"
+	_ "embed"
+	"fmt"
+	"maps"
+	"math"
+	"slices"
+	"strconv"
+	"strings"
+
+	"github.com/cant0r/AdventOfCode/2025/go/internal/utilities"
+)
+
+//go:embed input.txt
+var inputData string
+
+func main() {
+	partOne()
+	partTwo()
+}
+
+// float64 cause go.math :)
+type Coordinate struct {
+	X float64
+	Y float64
+	Z float64
+}
+
+func (c Coordinate) distanceFrom(other Coordinate) float64 {
+	if c == other {
+		return math.Inf(1)
+	}
+
+	dx := math.Pow(c.X-other.X, 2)
+	dy := math.Pow(c.Y-other.Y, 2)
+	dz := math.Pow(c.Z-other.Z, 2)
+
+	return dx + dy + dz
+}
+
+func loadCoordinates() []Coordinate {
+	var coordinates []Coordinate
+
+	for _, junctionBox := range strings.Split(inputData, "\n") {
+		coordinate := strings.Split(junctionBox, ",")
+
+		x, _ := strconv.ParseFloat(coordinate[0], 64)
+		y, _ := strconv.ParseFloat(coordinate[1], 64)
+		z, _ := strconv.ParseFloat(coordinate[2], 64)
+
+		coordinates = append(coordinates, Coordinate{
+			X: x,
+			Y: y,
+			Z: z,
+		})
+	}
+
+	slices.SortFunc(coordinates, func(a, b Coordinate) int {
+		return cmp.Compare(a.X, b.X)
+	})
+
+	return coordinates
+}
+
+func printDistanceMap(distanceMap map[Coordinate][]float64) {
+	for key, value := range distanceMap {
+		fmt.Printf("key=%v values=%.6v\n", key, value)
+	}
+}
+
+func findJunctionBoxesByDistance(junctionBoxes []Coordinate, distanceMap map[Coordinate][]float64, distance float64) (junktionBoxOne, junctionBox2 Coordinate) {
+	for coordinate, distances := range distanceMap {
+		for i, dist := range distances {
+			if dist == distance {
+				return coordinate, junctionBoxes[i]
+			}
+		}
+	}
+
+	return Coordinate{}, Coordinate{}
+}
+
+func junctionBoxInUse(circuits map[Coordinate][]Coordinate, junctionBox Coordinate) bool {
+	if amongstKeys := slices.Contains(slices.Collect(maps.Keys(circuits)), junctionBox); !amongstKeys {
+		return true
+	} else if len(circuits[junctionBox]) > 0 {
+		return true
+	}
+
+	return false
+}
+
+func buildDistanceMap(junctionBoxes []Coordinate) map[Coordinate][]float64 {
+	distanceMap := make(map[Coordinate][]float64)
+	for _, junctionBox := range junctionBoxes {
+		for _, otherJunctionBox := range junctionBoxes {
+			if distance, ok := distanceMap[junctionBox]; ok == false {
+				distanceMap[junctionBox] = []float64{junctionBox.distanceFrom(otherJunctionBox)}
+			} else {
+				distanceMap[junctionBox] = append(distance, junctionBox.distanceFrom(otherJunctionBox))
+			}
+		}
+	}
+	return distanceMap
+}
+
+func partOne() {
+	var result int = 0
+	var _distances []float64 = nil
+	var distances []float64 = nil
+	var junctionBoxes []Coordinate = loadCoordinates()
+
+	distanceMap := buildDistanceMap(junctionBoxes)
+	circuits := make(map[Coordinate][]Coordinate)
+
+	for _, juntionBox := range junctionBoxes {
+		circuits[juntionBox] = make([]Coordinate, 0)
+	}
+
+	for _, junktionBoxDistances := range distanceMap {
+		_distances = append(_distances, junktionBoxDistances...)
+	}
+
+	slices.SortFunc(_distances, func(a, b float64) int {
+		return cmp.Compare(a, b)
+	})
+
+	for i := 0; i < len(_distances); i++ {
+		if utilities.Mod(i, 2) == 0 {
+			distances = append(distances, _distances[i])
+		}
+	}
+	connections := 0
+	for _, distance := range distances {
+		if distance == math.MaxFloat64 || connections > 9 {
+			break
+		}
+
+		j1, j2 := findJunctionBoxesByDistance(junctionBoxes, distanceMap, distance)
+
+		fmt.Printf("j1=%v j2=%v with distance=%.6v\n", j1, j2, distance)
+
+		j1InUse, j2InUse := junctionBoxInUse(circuits, j1), junctionBoxInUse(circuits, j2)
+
+		if j1InUse && j2InUse {
+			fmt.Println("They are already part of a circuit. Don't do anything")
+			fmt.Printf("\tj1 circuit = {%v: %v} j2 circuit = {%v: %v}\n", j1, circuits[j1], j2, circuits[j2])
+			continue
+		}
+
+		if j1InUse && !j2InUse {
+			fmt.Println("j2 is not part of a circuit but j1 is.")
+
+			if _, circuitHead := circuits[j1]; circuitHead {
+				if slices.Contains(circuits[j1], j2) {
+					fmt.Printf("\t\tj2 is already part of the circuit, skip. j1 circuit=%v\n", circuits[j1])
+				} else {
+					circuits[j1] = append(circuits[j1], j2)
+					delete(circuits, j2)
+				}
+				fmt.Printf("\tj1 circuit = {%v: %v} j2 circuit = {%v: %v}\n", j1, circuits[j1], j2, circuits[j2])
+			} else {
+				for circuitHead, circuitNodes := range circuits {
+					if slices.Contains(circuitNodes, j1) && !slices.Contains(circuitNodes, j2) {
+						circuits[circuitHead] = append(circuits[circuitHead], j2)
+						delete(circuits, j2)
+						fmt.Printf("\tj1 circuit = {%v: %v} j2 circuit = {%v: %v}\n", j1, circuits[j1], circuitHead, circuits[circuitHead])
+						break
+					}
+				}
+			}
+			connections++
+			continue
+		}
+
+		if !j1InUse && j2InUse {
+			fmt.Println("j1 is not part of a circuit but j2 is.")
+
+			if _, circuitHead := circuits[j2]; circuitHead {
+				if slices.Contains(circuits[j2], j1) {
+					fmt.Printf("\t\tj1 is already part of the circuit, skip. j2 circuit=%v\n", circuits[j2])
+				} else {
+					circuits[j2] = append(circuits[j2], j1)
+					delete(circuits, j1)
+				}
+				fmt.Printf("\tj1 circuit = {%v: %v} j2 circuit = {%v: %v}\n", j1, circuits[j1], j2, circuits[j2])
+			} else {
+				for circuitHead, circuitNodes := range circuits {
+					if slices.Contains(circuitNodes, j2) && !slices.Contains(circuitNodes, j1) {
+						circuits[circuitHead] = append(circuits[circuitHead], j1)
+						delete(circuits, j1)
+						fmt.Printf("\tj1 circuit = {%v: %v} j2 circuit = {%v: %v}\n", j1, circuits[j1], circuitHead, circuits[circuitHead])
+						break
+					}
+				}
+			}
+			connections++
+			continue
+		}
+
+		if !j1InUse && !j2InUse {
+			fmt.Println("They were not selected before.")
+			circuits[j1] = []Coordinate{j2}
+			delete(circuits, j2)
+			fmt.Printf("\tj1 circuit = {%v: %v} j2 circuit = {%v: %v}\n", j1, circuits[j1], j2, circuits[j2])
+			connections++
+			continue
+		}
+
+	}
+
+	//printDistanceMap(distanceMap)
+
+	for key, circuit := range circuits {
+		fmt.Printf("%v - %v\n", key, circuit)
+	}
+
+	circuitsLengths := make([]int, len(circuits))
+
+	i := 0
+	for _, nodes := range circuits {
+		circuitsLengths[i] = len(nodes) + 1
+		i++
+	}
+
+	slices.Sort(circuitsLengths)
+
+	for _, length := range circuitsLengths {
+		fmt.Printf("%d ", length)
+	}
+	fmt.Println()
+
+	utilities.PrintResult(result)
+}
+
+func partTwo() {
+	var result int = 0
+	utilities.PrintResult(result)
+}
